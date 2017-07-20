@@ -5,33 +5,55 @@
 
 #include "candevice/candeviceinterface.hpp"
 #include "candevice/canfactory.hpp"
+#include "candevice/candeviceqt.hpp"
+#include "candevice/canfactoryqt.hpp"
 
 #include "log.hpp"
+
 std::shared_ptr<spdlog::logger> kDefaultLogger;
+
+using namespace fakeit;
 
 TEST_CASE("Initialization failed", "[candevice]")
 {
-    using namespace fakeit;
-    fakeit::Mock<CanFactoryInterface> factoryMock;
-    fakeit::When(Method(factoryMock, create)).Return(nullptr);
+
+    Mock<CanFactoryInterface> factoryMock;
+    When(Method(factoryMock, create)).Return(nullptr);
     CanDevice canDevice{ factoryMock.get() };
     CHECK(canDevice.init("", "") == false);
 }
 
 TEST_CASE("Initialization succedded", "[candevice]")
 {
-    using namespace fakeit;
-    fakeit::Mock<CanFactoryInterface> factoryMock;
-    fakeit::Mock<CanDeviceInterface> deviceMock;
+    Mock<CanFactoryInterface> factoryMock;
+    Mock<CanDeviceInterface> deviceMock;
 
     Fake(Dtor(deviceMock));
     When(Method(deviceMock, framesWritten)).Do([](const auto& cb) { cb(100); });
     Fake(Method(deviceMock, framesReceived));
     Fake(Method(deviceMock, errorOccurred));
 
-    fakeit::When(Method(factoryMock, create)).Return(&(deviceMock.get()));
+    When(Method(factoryMock, create)).Return(&(deviceMock.get()));
     CanDevice canDevice{ factoryMock.get() };
     CHECK(canDevice.init("", "") == true);
+}
+
+TEST_CASE("Start failed - canDevice is not initialized","[candevice]")
+{
+    Mock<CanFactoryInterface> factoryMock;
+    When(Method(factoryMock, create)).Return(nullptr);
+    CanDevice canDevice{ factoryMock.get() };
+    CHECK(canDevice.start() == false);
+}
+
+TEST_CASE("Start failed - could not connect to device","[candevice]")
+{
+    Mock<CanDeviceQt> device;
+    Mock<CanFactoryQt> canFactory;
+    When(Method(device, connectDevice)).Return(false);
+    When(Method(canFactory, create)).Return(&device.get());
+    CanDevice canDevice(canFactory.get());
+    CHECK(canDevice.start() == false);
 }
 
 int main(int argc, char* argv[])
